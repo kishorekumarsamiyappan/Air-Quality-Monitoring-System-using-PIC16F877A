@@ -1,0 +1,322 @@
+#include <16F877A.h>
+#device ADC=10
+#FUSES NOWDT, PUT, NOBROWNOUT, NOLVP, HS
+#use delay(crystal=20MHz)
+
+// ---- Hardware connections ----
+#bit SERVO   = 0x08.0   // RD0 - Servo
+#bit BUTTON  = 0x08.3   // RD3 - Manual Servo switch
+#bit FAN     = 0x08.2   // RD2 - Fan
+#bit SWITCH1 = 0x08.1   // RD1 - Manual Fan switch
+#bit LED_GREEN  = 0x08.4
+#bit LED_YELLOW = 0x08.5
+#bit LED_RED    = 0x08.6
+#bit BUZZER     = 0x08.7
+
+// ---- LCD connections ----
+#define LCD_ENABLE_PIN  PIN_B2
+#define LCD_RS_PIN      PIN_B0
+#define LCD_RW_PIN      PIN_B1
+#define LCD_DATA4       PIN_B4
+#define LCD_DATA5       PIN_B5
+#define LCD_DATA6       PIN_B6
+#define LCD_DATA7       PIN_B7
+#include <lcd.c>
+
+// ---- DHT11 Pin ----
+#define DHT11_PIN PIN_C0
+
+// ---- DHT11 Function Prototypes ----
+short dht11_read_data(unsigned int8 *data);
+void dht11_start();
+int1 dht11_check_response();
+unsigned int8 dht11_read_byte();
+
+// ---- Global variables for manual modes ----
+int manual_fan = 0;     // 0=auto, 1=manual ON
+int manual_window = 0;  // 0=auto, 1=manual OPEN
+int button_pressed = 0;
+int switch_pressed = 0;
+
+// ---- Improved Servo function ----
+void servo_set_angle(int angle) {
+   int16 pulse_width;
+   // Standard servo pulse: 500-2500µs for 0-180°
+   pulse_width = 500 + ((int32)angle * 2000) / 180;
+   
+   if(pulse_width < 500) pulse_width = 500;
+   if(pulse_width > 2500) pulse_width = 2500;
+   
+   SERVO = 1;
+   delay_us(pulse_width);
+   SERVO = 0;
+   delay_us(20000 - pulse_width);  // 20ms period
+}
+
+// ---- Button debouncing function ----
+int1 button_debounce(int1 current_state) {
+   static int1 last_state = 0;
+   static long last_time = 0;
+   long current_time = get_timer0(); // Use timer for time reference
+   
+   if(current_state != last_state) {
+      last_time = current_time;
+      last_state = current_state;
+      return 0; // State changed, wait for debounce
+   }
+   
+   if((current_time - last_time) > 20) { // 20ms debounce time
+      return current_state;
+   }
+   
+   return last_state;
+}
+
+void main() {
+   set_tris_d(0b00001010);   // RD1 & RD3 inputs, others outputs
+   set_tris_c(0x01);         // RC0 input for DHT11
+   setup_adc_ports(ALL_ANALOG);
+   setup_adc(ADC_CLOCK_INTERNAL);
+
+   lcd_init();
+
+   int servo_angle = 0;
+   int16 mq135, pm25;
+   float mq_voltage, mq_ppm;
+   unsigned int8 dht_data[5];
+   unsigned int8 RH_int = 0, RH_dec = 0, T_int = 0, T_dec = 0;
+   int fan_status = 0;
+   int air_status = 0;
+   int buzzer_status = 0;
+   int lcd_screen = 0;
+   long last_dht_read = 0;
+   long last_servo_update = 0;
+
+   // Initial states
+   FAN = 0;
+   SERVO = 0;
+   BUZZER = 0;
+   LED_GREEN = 0; LED_YELLOW = 0; LED_RED = 0;
+
+   // Welcome screens
+   lcd_putc("\f MICRO  PROJECT  ");
+   lcd_gotoxy(1,2);
+   lcd_putc("      EIOT      ");
+   delay_ms(1000);
+
+   lcd_putc("\f  Air  Quality  ");
+   lcd_gotoxy(1,2);
+   lcd_putc(" Monitor System ");
+   delay_ms(1000);
+
+   while(TRUE) {
+      // ---- Read buttons with debouncing ----
+      int1 button_state = !BUTTON;    // Active LOW
+      int1 switch_state = !SWITCH1;   // Active LOW
+      
+      // Simple software debounce
+      delay_ms(10);
+      if(button_state == !BUTTON) {
+         if(button_state && !button_pressed) {
+            manual_window = !manual_window; // Toggle window mode
+            button_pressed = 1;
+         }
+         if(!button_state) button_pressed = 0;
+      }
+      
+      if(switch_state == !SWITCH1) {
+         if(switch_state && !switch_pressed) {
+            manual_fan = !manual_fan; // Toggle fan mode
+            switch_pressed = 1;
+         }
+         if(!switch_state) switch_pressed = 0;
+      }
+
+      // ---- Read sensors ----
+      set_adc_channel(0); 
+      delay_ms(2);     // Better ADC stabilization
+      mq135 = read_adc();
+      mq_voltage = (mq135 * 5.0) / 1023.0;
+      mq_ppm = mq_voltage * 200.0;
+
+      set_adc_channel(1);
+      delay_ms(2);
+      pm25 = read_adc();
+
+      // ---- Read DHT11 every 2 seconds ----
+      if((get_timer0() - last_dht_read) > 2000) {
+         if(dht11_read_data(dht_data)) {
+            RH_int = dht_data[0];
+            RH_dec = dht_data[1];
+            T_int  = dht_data[2];
+            T_dec  = dht_data[3];
+         }
+         last_dht_read = get_timer0();
+      }
+
+      // ---- Air Quality Decision Logic ----
+      if(mq135 < 300 && pm25 < 300 && T_int < 30) {
+         air_status = 0; // GOOD
+      } 
+      else if(mq135 < 700 && pm25 < 700 && T_int < 40) {
+         air_status = 1; // MODERATE
+      } 
+      else {
+         air_status = 2; // BAD
+      }
+
+      // ---- Control Logic ----
+      
+      // WINDOW CONTROL
+      if(manual_window) {
+         servo_angle = 90; // Manual open
+      } else {
+         // Auto mode
+         if(air_status == 2) {
+            servo_angle = 90; // Open for bad air
+         } else {
+            servo_angle = 0;  // Close otherwise
+         }
+      }
+
+      // FAN CONTROL
+      if(manual_fan) {
+         FAN = 1;
+         fan_status = 1;
+      } else {
+         // Auto mode
+         if(air_status == 1 || air_status == 2) {
+            FAN = 1;
+            fan_status = 1;
+         } else {
+            FAN = 0;
+            fan_status = 0;
+         }
+      }
+
+      // BUZZER & LEDS
+      if(air_status == 0) {
+         LED_GREEN=1; LED_YELLOW=0; LED_RED=0;
+         BUZZER=0; buzzer_status=0;
+      } 
+      else if(air_status == 1) {
+         LED_GREEN=0; LED_YELLOW=1; LED_RED=0;
+         BUZZER=0; buzzer_status=0;
+      } 
+      else {  
+         LED_GREEN=0; LED_YELLOW=0; LED_RED=1;
+         BUZZER=1; buzzer_status=1;
+      }
+
+      // ---- Update Servo (only when needed) ----
+      if((get_timer0() - last_servo_update) > 50) { // Update every 50ms
+         servo_set_angle(servo_angle);
+         last_servo_update = get_timer0();
+      }
+
+      // ---- Rotating LCD Display ----
+      lcd_screen++;
+      if(lcd_screen > 4) lcd_screen = 0;
+      
+      switch(lcd_screen) {
+         case 0: // MQ135
+            lcd_putc("\fMQ135:");
+            printf(lcd_putc, "%lu", mq135);
+            lcd_gotoxy(1,2);
+            printf(lcd_putc, "PPM:%.1f", mq_ppm);
+            break;
+            
+         case 1: // PM2.5
+            lcd_putc("\fPM2.5:");
+            printf(lcd_putc, "%lu", pm25);
+            lcd_gotoxy(1,2);
+            printf(lcd_putc, "VOLT:%.2f", (pm25*5.0)/1023.0);
+            break;
+            
+         case 2: // DHT11
+            printf(lcd_putc, "\fTEMP:%u.%u", T_int, T_dec);
+            lcd_putc(0xDF); // degree symbol
+            lcd_putc("C");
+            lcd_gotoxy(1,2);
+            printf(lcd_putc, "HUMI:%u.%u%%", RH_int, RH_dec);
+            break;
+            
+         case 3: // Air Status
+            lcd_putc("\fAir Status:");
+            lcd_gotoxy(1,2);
+            if(air_status==0) lcd_putc("   GOOD   ");
+            else if(air_status==1) lcd_putc(" MODERATE ");
+            else lcd_putc("   BAD!!  ");
+            break;
+            
+         case 4: // System Status
+            lcd_putc("\fF:");
+            lcd_putc(fan_status ? "ON " : "OFF");
+            lcd_putc(" W:");
+            lcd_putc(servo_angle==90 ? "OPEN" : "CLOSE");
+            lcd_gotoxy(1,2);
+            lcd_putc("B:");
+            lcd_putc(buzzer_status ? "ON " : "OFF");
+            lcd_putc(" M:");
+            lcd_putc(manual_fan ? "MAN" : "AUTO");
+            break;
+      }
+      
+      delay_ms(500); // Display time for each screen
+   }
+}
+
+// ------------------- Improved DHT11 Functions -------------------
+short dht11_read_data(unsigned int8 *data) {
+   unsigned int8 i;
+   
+   dht11_start();
+   if(!dht11_check_response()) {
+      return 0; // No response
+   }
+   
+   for(i=0; i<5; i++) {
+      data[i] = dht11_read_byte();
+   }
+   
+   // Verify checksum
+   if(data[4] == ((data[0] + data[1] + data[2] + data[3]) & 0xFF)) {
+      return 1;
+   }
+   return 0;
+}
+
+void dht11_start() {
+   output_float(DHT11_PIN);  // Ensure high impedance first
+   output_low(DHT11_PIN);
+   delay_ms(18);            // 18ms minimum
+   output_high(DHT11_PIN);
+   delay_us(30);            // 30us
+   set_tris_c(0x01);        // Set as input
+}
+
+int1 dht11_check_response() {
+   delay_us(40);
+   if(input(DHT11_PIN)) return 0;
+   
+   delay_us(80);
+   if(!input(DHT11_PIN)) return 0;
+   
+   return 1;
+}
+
+unsigned int8 dht11_read_byte() {
+   unsigned int8 i, data = 0;
+   
+   for(i=0; i<8; i++) {
+      data <<= 1;
+      while(!input(DHT11_PIN));  // Wait for high
+      delay_us(35);              // Wait 35us then check
+      
+      if(input(DHT11_PIN)) {
+         data |= 1;
+      }
+      while(input(DHT11_PIN));   // Wait for low
+   }
+   return data;
+}

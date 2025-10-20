@@ -1,0 +1,265 @@
+004-005 @READ_PROGRAM_MEMORY8.P1
+004-005 @WRITE_PROGRAM_MEMORY8.P2
+008.0   SERVO
+008     PSP_DATA
+008.1   SWITCH1
+008.2   FAN
+008.3   BUTTON
+008.4   LED_GREEN
+008.5   LED_YELLOW
+008.6   LED_RED
+008.7   BUZZER
+015     CCP_1_LOW
+015     CCP_1
+016     CCP_1_HIGH
+01B     CCP_2
+01B     CCP_2_LOW
+01C     CCP_2_HIGH
+020     @TRIS_C
+021     MAIN.servo_angle
+022-023 MAIN.mq135
+024-025 MAIN.pm25
+026-029 MAIN.mq_voltage
+02A-02D MAIN.mq_ppm
+02E-031 MAIN.pm25_voltage
+032-036 MAIN.dht_data
+037     MAIN.RH_int
+038     MAIN.RH_dec
+039     MAIN.T_int
+03A     MAIN.T_dec
+03B     MAIN.fan_status
+03C     MAIN.air_status
+03D     MAIN.buzzer_status
+03E     MAIN.i
+03F     MAIN.j
+040     MAIN.l
+041     MAIN.k
+042     MAIN.m
+043     @PRINTF_U_656.P1
+043-044 @ITOF.P2
+043     @PSTRINGCN7_656.P3
+043     servo_set_angle.angle
+043-044 @PRINTF_LU_656.P1
+043     lcd_init.i
+043     @PRINTF_U_9600_62_63.P1
+043-046 @PRINTF_L32D_656FPFPF.P2
+043-044 dht11_read_data.data
+043-044 @PRINTF_LU_9600_62_63.P1
+043     MAIN.@SCRATCH1
+043     @PSTRINGC7_656.@SCRATCH1
+044     @PRINTF_D_9600_62_63.P1
+044-045 servo_set_angle.pulse_width
+044     @PSTRINGCN7_9600_62_63.P1
+044     @PRINTF_U_656.P2
+044     @PRINTF_U_9600_62_63.P3
+044     lcd_init.@SCRATCH1
+044     MAIN.@SCRATCH2
+044     @PSTRINGC7_656.@SCRATCH2
+044     @PSTRINGCN7_656.@SCRATCH1
+045     @PRINTF_D_9600_62_63.P1
+045     dht11_read_data.i
+045     MAIN.@SCRATCH3
+045     @PSTRINGC7_656.@SCRATCH3
+045     @PRINTF_LU_656.@SCRATCH1
+045     @PSTRINGCN7_656.@SCRATCH2
+045     @PSTRINGCN7_9600_62_63.@SCRATCH1
+045     @PRINTF_LU_9600_62_63.@SCRATCH1
+046     servo_set_angle.@SCRATCH1
+046     MAIN.@SCRATCH4
+046     @PSTRINGC7_656.@SCRATCH4
+046     @PRINTF_LU_656.@SCRATCH2
+046     @PSTRINGCN7_656.@SCRATCH3
+046     @PSTRINGCN7_9600_62_63.@SCRATCH2
+046     @PRINTF_LU_9600_62_63.@SCRATCH2
+046     @PRINTF_D_9600_62_63.@SCRATCH1
+046     dht11_read_data.@SCRATCH1
+047-04A @DIVFF.P1
+047     @PRINTF_L32D_656FPFPF.P2
+047     servo_set_angle.@SCRATCH2
+047     @PRINTF_LU_656.@SCRATCH3
+047     @PSTRINGCN7_656.@SCRATCH4
+047     @PSTRINGCN7_9600_62_63.@SCRATCH3
+047     @PRINTF_LU_9600_62_63.@SCRATCH3
+047     @PRINTF_D_9600_62_63.@SCRATCH2
+047     dht11_read_data.@SCRATCH2
+048     dht11_read_byte.i
+048     servo_set_angle.@SCRATCH3
+048     @PRINTF_LU_656.@SCRATCH4
+048     @PRINTF_L32D_656FPFPF.@SCRATCH1
+048     @PSTRINGCN7_9600_62_63.@SCRATCH4
+048     @PRINTF_LU_9600_62_63.@SCRATCH4
+048     @PRINTF_D_9600_62_63.@SCRATCH3
+049     dht11_read_byte.data
+049     @delay_us1.P1
+049     servo_set_angle.@SCRATCH4
+049     @PRINTF_LU_656.@SCRATCH5
+049     @PRINTF_L32D_656FPFPF.@SCRATCH2
+049     @PRINTF_LU_9600_62_63.@SCRATCH5
+049     @PRINTF_D_9600_62_63.@SCRATCH4
+04A     @DIV88.P1
+04A-04D @MUL3232.P2
+04A     @PRINTF_LU_656.@SCRATCH6
+04A     @PRINTF_L32D_656FPFPF.@SCRATCH3
+04A     @PRINTF_LU_9600_62_63.@SCRATCH6
+04A     dht11_read_byte.@SCRATCH1
+04B-04E @DIVFF.P1
+04B     @DIV88.P2
+04B     @PRINTF_LU_656.@SCRATCH7
+04B     @PRINTF_L32D_656FPFPF.@SCRATCH4
+04B     @PRINTF_LU_9600_62_63.@SCRATCH7
+04C     @PRINTF_L32D_656FPFPF.@SCRATCH5
+04C     @DIV88.@SCRATCH1
+04D     @PRINTF_L32D_656FPFPF.@SCRATCH6
+04E-051 @MUL3232.P1
+04E     @PRINTF_L32D_656FPFPF.@SCRATCH7
+04F     @DIVFF.@SCRATCH1
+04F     @PRINTF_L32D_656FPFPF.@SCRATCH8
+050     lcd_putc.c
+050-053 @DIV3232.P1
+050-053 @MULFF.P2
+050-053 @FTOSD.P3
+050     @DIVFF.@SCRATCH2
+051     lcd_gotoxy.x
+051     @delay_ms1.P1
+051     @DIVFF.@SCRATCH3
+052     lcd_gotoxy.y
+052     @MUL3232.@SCRATCH1
+052     @DIVFF.@SCRATCH4
+053     lcd_gotoxy.address
+053     @MUL3232.@SCRATCH2
+053     @DIVFF.@SCRATCH5
+054-057 @MULFF.P1
+054-057 @DIV3232.P2
+054     lcd_gotoxy.@SCRATCH1
+054     @MUL3232.@SCRATCH3
+054     @DIVFF.@SCRATCH6
+054     @FTOSD.@SCRATCH1
+055     lcd_send_byte.address
+055     @MUL3232.@SCRATCH4
+056     lcd_send_byte.n
+056     @MUL3232.@SCRATCH5
+057     lcd_read_byte.low
+057     lcd_send_byte.@SCRATCH1
+058     lcd_read_byte.high
+058     lcd_send_nibble.n
+058     @DIV3232.@SCRATCH1
+058     @MULFF.@SCRATCH1
+059     lcd_read_nibble.n
+059     lcd_read_byte.@SCRATCH1
+059     @DIV3232.@SCRATCH2
+059     @MULFF.@SCRATCH2
+05A     lcd_read_nibble.@SCRATCH1
+05A     @DIV3232.@SCRATCH3
+05A     @MULFF.@SCRATCH3
+05B     @DIV3232.@SCRATCH4
+05B     @MULFF.@SCRATCH4
+05C     @DIV3232.@SCRATCH5
+05C     @MULFF.@SCRATCH5
+077     @SCRATCH
+078     @SCRATCH
+078     _RETURN_
+079     @SCRATCH
+07A     @SCRATCH
+09C.6   C1OUT
+09C.7   C2OUT
+10D-10E @READ_PROGRAM_MEMORY8.P1
+10D-10E @WRITE_PROGRAM_MEMORY8.P2
+
+ROM Allocation:
+000004  LCD_INIT_STRING.call
+000008  LCD_INIT_STRING.data
+00000C  @const700.call
+000016  @const702.call
+00001F  @const703.call
+000028  @const704.call
+000031  @const713.call
+000036  @const717.call
+00003D  @const726.call
+000042  @const728.call
+000049  @const730.call
+000050  @const737.call
+000058  @const739.call
+00005F  @const740.call
+000065  @const741.call
+00006B  @const742.call
+000071  @const744.call
+000075  @const745.call
+000077  @const746.call
+000079  @const747.call
+00007F  @const748.call
+000085  @const749.call
+000088  @const750.call
+00008C  @const752.call
+000091  @const757.call
+000097  @const758.call
+00009D  @const762.call
+0000A3  @const763.call
+0000A7  @const767.call
+0000AD  @const768.call
+0000B2  @const769.call
+0000B8  @delay_ms1
+0000CC  lcd_send_nibble
+0000FC  lcd_read_nibble
+00012D  lcd_send_byte
+000135  lcd_read_byte
+00018B  lcd_init
+0001C8  lcd_gotoxy
+0001DA  lcd_putc
+000206  @PSTRINGC7_656
+000251  @ITOF
+00026E  @MULFF
+0002E3  @DIVFF
+0003AD  @delay_us1
+0003BC  dht11_start
+0003BC  dht11_read_data
+0003DA  dht11_check_response
+000413  dht11_read_byte
+000479  @PRINTF_LU_656
+0004DC  @PSTRINGCN7_656
+000530  @DIV3232
+00057F  @PRINTF_L32D_656FPFPF
+0005A6  @FTOSD
+00065F  servo_set_angle
+000672  @MUL3232
+0006E1  @DIV88
+0006F6  @PRINTF_U_656
+00072B  @PSTRINGCN7_9600_62_63
+000781  @PRINTF_LU_9600_62_63
+000800  @PRINTF_U_9600_62_63
+00083C  @PRINTF_D_9600_62_63
+00089B  @cinit1
+00089B  MAIN
+0008AF  @cinit2
+
+Project Directory:
+    K:\Micro Project\5th Sem Micro Project\EIOT\
+
+Project Files:
+    main.c                                                  [04-Oct-25 16:29  CRC=AEE703CC]
+    C:\Program Files (x86)\PICC\Devices\16F877A.h           [03-Jul-13 14:28  CRC=4E65664C]
+    C:\Program Files (x86)\PICC\Drivers\lcd.c               [23-Aug-12 09:01  CRC=D28E8746]
+
+Source signature=A26978A4
+
+Units:
+    main (main)
+
+Compiler Settings:
+    Processor:      PIC16F877A
+    Pointer Size:   16
+    ADC Range:      0-1023
+    Opt Level:      9
+    Short,Int,Long: UNSIGNED: 1,8,16
+    Float,Double:   32,32
+
+Output Files:
+    XREF file:   main.xsym
+    Errors:      main.err
+    Ext Symbols: main.esym
+    INHX8:       main.hex
+    Symbols:     main.sym
+    List:        main.lst
+    Debug/COFF:  main.cof
+    Project:     main.ccspjt
+    Call Tree:   main.tre
+    Statistics:  main.STA

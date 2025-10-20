@@ -1,0 +1,152 @@
+#include <16F877A.h>
+#device ADC=10
+#FUSES NOWDT, PUT, NOBROWNOUT, NOLVP, HS
+#use delay(crystal=20MHz)
+#use rs232(baud=9600, xmit=PIN_C6, rcv=PIN_C7, bits=8, parity=N)   // UART to ESP8266
+
+// ---- Hardware connections ----
+#bit SERVO   = 0x08.0   // RD0
+#bit SWITCH1 = 0x08.1   // RD1 (Fan switch)
+#bit FAN     = 0x08.2   // RD2
+#bit BUTTON  = 0x08.3   // RD3 (Servo switch)
+#bit LED_GREEN  = 0x08.4
+#bit LED_YELLOW = 0x08.5
+#bit LED_RED    = 0x08.6
+#bit BUZZER     = 0x08.7
+
+// ---- LCD connections ----
+#define LCD_ENABLE_PIN  PIN_B2
+#define LCD_RS_PIN      PIN_B0
+#define LCD_RW_PIN      PIN_B1
+#define LCD_DATA4       PIN_B4
+#define LCD_DATA5       PIN_B5
+#define LCD_DATA6       PIN_B6
+#define LCD_DATA7       PIN_B7
+#include <lcd.c>
+
+// ---- Sensor pins ----
+#define DHT11_PIN   PIN_C0
+#define DUST_LED_PIN PIN_C1
+
+// ---- Function prototypes ----
+short dht11_read_data(unsigned int8 *data);
+void dht11_start();
+int1 dht11_check_response();
+unsigned int8 dht11_read_byte();
+
+void servo_set_angle(int angle) {
+   int16 pulse_width = 1000 + ((int32)angle * 1000) / 180;
+   SERVO = 1; delay_us(pulse_width);
+   SERVO = 0; delay_us(20000 - pulse_width);
+}
+
+void main() {
+   set_tris_d(0b00001010);   // RD1 & RD3 inputs, others outputs
+   setup_adc_ports(ALL_ANALOG);
+   setup_adc(ADC_CLOCK_INTERNAL);
+   set_tris_c(0b11111101);   // RC0=input (DHT11), RC1=output
+
+   output_high(DUST_LED_PIN); // LED OFF
+   lcd_init();
+
+   int servo_angle = 0;
+   int16 mq135, pm25;
+   float mq_voltage, mq_ppm, pm25_voltage;
+   unsigned int8 dht_data[5], RH_int, RH_dec, T_int, T_dec;
+   int fan_status=0, air_status=0, buzzer_status=0;
+
+   FAN=0; SERVO=0; BUZZER=0;
+   LED_GREEN=LED_YELLOW=LED_RED=0;
+
+   // Welcome
+   lcd_putc("\fAir Quality\nMonitor System");
+   delay_ms(800);
+
+   while(TRUE) {
+      // ---- Manual Servo ----
+      if(!BUTTON) servo_angle = 90; else servo_angle = 0;
+
+      // ---- MQ135 ----
+      set_adc_channel(0); delay_us(20);
+      mq135 = read_adc();
+      mq_voltage = (mq135 * 5.0) / 1023.0;
+      mq_ppm = mq_voltage * 200.0;
+
+      // ---- PM2.5 ----
+      output_low(DUST_LED_PIN); delay_us(280);
+      set_adc_channel(1); delay_us(40);
+      pm25 = read_adc();
+      output_high(DUST_LED_PIN);
+      pm25_voltage = (pm25 * 5.0) / 1023.0;
+      delay_ms(10);
+
+      // ---- DHT11 ----
+      if(dht11_read_data(dht_data)) {
+         RH_int=dht_data[0]; RH_dec=dht_data[1];
+         T_int=dht_data[2]; T_dec=dht_data[3];
+      } else { RH_int=RH_dec=T_int=T_dec=0; }
+
+      // ---- Decision ----
+      if(mq135<300 && pm25<300 && T_int<30) air_status=0;
+      else if(mq135<700 && pm25<700 && T_int<40) air_status=1;
+      else air_status=2;
+
+      if(air_status==0) {
+         LED_GREEN=1; LED_YELLOW=LED_RED=0;
+         FAN=0; fan_status=0; BUZZER=0; buzzer_status=0;
+      } else if(air_status==1) {
+         LED_YELLOW=1; LED_GREEN=LED_RED=0;
+         FAN=0; fan_status=0; BUZZER=0; buzzer_status=0;
+      } else {
+         LED_RED=1; LED_GREEN=LED_YELLOW=0;
+         FAN=1; fan_status=1; BUZZER=1; buzzer_status=1;
+         servo_angle=90;
+      }
+
+      // ---- Manual Fan ----
+      if(!SWITCH1) { FAN=1; fan_status=1; }
+
+      // ---- LCD ----
+      lcd_putc("\fTEMP: "); printf(lcd_putc,"%u.%uC",T_int,T_dec);
+      lcd_gotoxy(1,2); printf(lcd_putc,"HUM: %u.%u%%",RH_int,RH_dec);
+      for(int i=0;i<20;i++) servo_set_angle(servo_angle);
+
+      // ---- UART Send Data to ESP8266 ----
+      // Format: pm25,temp,hum,mq135,fan,switch,servo
+      printf("DATA:%lu,%u,%u,%lu,%u,%u,%u\n",
+              pm25, T_int, RH_int, mq135,
+              fan_status, !SWITCH1, (servo_angle==90));
+   }
+}
+
+// ------------------- DHT11 -------------------
+short dht11_read_data(unsigned int8 *data) {
+   unsigned int8 i;
+   dht11_start();
+   if(!dht11_check_response()) return 0;
+   for(i=0;i<5;i++) data[i]=dht11_read_byte();
+   if(data[4] != ((data[0]+data[1]+data[2]+data[3])&0xFF)) return 0;
+   return 1;
+}
+void dht11_start() {
+   output_drive(DHT11_PIN);
+   output_low(DHT11_PIN); delay_ms(20);
+   output_high(DHT11_PIN); delay_us(30);
+   set_tris_c(0x01);
+}
+int1 dht11_check_response() {
+   delay_us(40);
+   if(!input(DHT11_PIN)) { delay_us(80);
+      if(input(DHT11_PIN)) { delay_us(40); return 1; }
+   } return 0;
+}
+unsigned int8 dht11_read_byte() {
+   unsigned int8 i,data=0;
+   for(i=0;i<8;i++) {
+      while(!input(DHT11_PIN));
+      delay_us(30);
+      if(input(DHT11_PIN)) data=(data<<1)|1; else data=(data<<1);
+      while(input(DHT11_PIN));
+   } return data;
+}
+

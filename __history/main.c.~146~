@@ -1,0 +1,241 @@
+#include <16F877A.h>
+#device ADC=10   // 10-bit ADC
+#FUSES NOWDT, PUT, NOBROWNOUT, NOLVP, HS   // HS for 20 MHz crystal
+#use delay(crystal=20MHz)
+
+// ---- Hardware connections ----
+#bit SERVO   = 0x08.0   // RD0 - Servo
+#bit BUTTON  = 0x08.3   // RD3 - Push button (Servo switch)
+#bit FAN     = 0x08.2   // RD2 - Fan
+#bit SWITCH1 = 0x08.1   // RD1 - Manual fan switch
+#bit LED_GREEN  = 0x08.4   // RD4
+#bit LED_YELLOW = 0x08.5   // RD5
+#bit LED_RED    = 0x08.6   // RD6
+#bit BUZZER     = 0x08.7   // RD7
+
+// ---- LCD connections ----
+#define LCD_ENABLE_PIN  PIN_B2
+#define LCD_RS_PIN      PIN_B0
+#define LCD_RW_PIN      PIN_B1
+#define LCD_DATA4       PIN_B4
+#define LCD_DATA5       PIN_B5
+#define LCD_DATA6       PIN_B6
+#define LCD_DATA7       PIN_B7
+#include <lcd.c>
+
+// ---- DHT11 Pin ----
+#define DHT11_PIN PIN_C0   // Now DHT11 connected to RC0
+
+// ---- DHT11 Function Prototypes ----
+short dht11_read_data(unsigned int8 *data);
+void dht11_start();
+int1 dht11_check_response();
+unsigned int8 dht11_read_byte();
+
+// ---- Servo function (continuous PWM) ----
+void servo_set_angle(int angle) {
+   int16 pulse_width;
+   pulse_width = 1000 + ((int32)angle * 1000) / 180;
+   SERVO = 1;
+   delay_us(pulse_width);
+   SERVO = 0;
+   delay_us(20000 - pulse_width);  // 20 ms period
+}
+
+// ---- Main program ----
+void main() {
+   set_tris_d(0b00001010);   // RD1 & RD3 inputs, others outputs
+   setup_adc_ports(ALL_ANALOG);
+   setup_adc(ADC_CLOCK_INTERNAL);
+
+   lcd_init();
+
+   int servo_angle = 0;   // default closed
+   int16 mq135, pm25;
+   float mq_voltage, mq_ppm;
+   unsigned int8 dht_data[5];
+   unsigned int8 RH_int, RH_dec, T_int, T_dec;
+   int fan_status = 0;
+   int air_status = 0;
+   int buzzer_status = 0;
+   
+
+   // Initial device states
+   FAN = 0;
+   fan_status = 0;
+   SERVO = 0;          // Ensure servo is LOW initially
+   servo_angle = 0;    // Closed position
+   BUZZER = 0;
+   buzzer_status = 0;
+   LED_GREEN = 0;
+   LED_YELLOW = 0;
+   LED_RED = 0;
+
+   // ---- Welcome screens ----
+   lcd_putc("\f MICRO  PROJECT  ");
+   lcd_gotoxy(1,2);
+   lcd_putc("      EIOT      ");
+   delay_ms(500);
+
+   lcd_putc("\f  Air  Quality  ");
+   lcd_gotoxy(1,2);
+   lcd_putc(" Monitor System ");
+   delay_ms(500);
+
+   while(TRUE) {
+      // ---- Servo manual switch control ----
+      if(BUTTON) servo_angle = 90;
+      else servo_angle = 0;
+
+      // ---- Read sensors ----
+      set_adc_channel(0); delay_us(20);    // MQ135 on AN0
+      mq135 = read_adc();
+      mq_voltage = (mq135 * 5.0) / 1023.0;   // Convert to voltage
+      mq_ppm = mq_voltage * 200.0;           // Approx ppm
+
+      set_adc_channel(1); delay_us(20);   // PM2.5 on AN1
+      pm25 = read_adc();
+
+      // ---- Read DHT11 ----
+      if(dht11_read_data(dht_data)) {
+         RH_int = dht_data[0];
+         RH_dec = dht_data[1];
+         T_int  = dht_data[2];
+         T_dec  = dht_data[3];
+      } else {
+         RH_int=RH_dec=T_int=T_dec=0; // Error fallback
+      }
+
+      // ---- Decision logic ----
+      if(mq135 < 300 && pm25 < 300 && T_int < 30) {
+         air_status = 0; // GOOD
+      } 
+      else if(mq135 < 700 && pm25 < 700 && T_int < 40) {
+         air_status = 1; // MODERATE
+      } 
+      else {
+         air_status = 2; // BAD
+      }
+
+      // ---- Control devices (auto mode) ----
+      if(air_status == 0) {
+         LED_GREEN=1; LED_YELLOW=0; LED_RED=0;
+         FAN=0; fan_status=0; 
+         BUZZER=0; buzzer_status=0;
+      } 
+      else if(air_status == 1) {
+         LED_GREEN=0; LED_YELLOW=1; LED_RED=0;
+         FAN=0; fan_status=0; 
+         BUZZER=0; buzzer_status=0;
+      } 
+      else {  
+         LED_GREEN=0; LED_YELLOW=0; LED_RED=1;
+         FAN=1; fan_status=1; 
+         BUZZER=1; buzzer_status=1;
+         servo_angle = 90;   // force open
+      }
+
+      // ---- Manual Fan Override ----
+      if(SWITCH1) {
+         FAN = 1;     
+         fan_status = 1;
+      }
+
+      // ---- LCD Displays ----
+      // 1. MQ135 Raw + PPM
+      lcd_putc("\fMQ135 : ");
+      printf(lcd_putc,"%lu",mq135);   // raw ADC
+      lcd_gotoxy(1,2);
+      printf(lcd_putc,"PPM   : %.2f",mq_ppm);
+      for(int i=0;i<30;i++) servo_set_angle(servo_angle);
+
+      // 2. PM2.5
+      lcd_putc("\fPM2.5 : ");
+      printf(lcd_putc,"%lu",pm25);
+      lcd_gotoxy(1,2);
+      printf(lcd_putc,"VOLT  : %.2f",(pm25*5.0)/1023.0);
+      for(int j=0;j<30;j++) servo_set_angle(servo_angle);
+
+      // 3. DHT11 Temp/Hum (with ° symbol fix)
+      printf(lcd_putc,"\fTEMP : %u.%u",T_int,T_dec);
+      lcd_putc(223);   // print degree symbol
+      lcd_putc('C');
+      lcd_gotoxy(1,2);
+      printf(lcd_putc,"HUMI : %u.%u%%",RH_int,RH_dec);
+      for(int l=0;l<30;l++) servo_set_angle(servo_angle);
+
+      // 4. Air Quality status
+      lcd_putc("\fAir Status :");
+      lcd_gotoxy(1,2);
+      if(air_status==0)
+         lcd_putc("   GOOD   ");
+      else if(air_status==1)
+         lcd_putc(" MODERATE ");
+      else
+         lcd_putc("   BAD!!  ");
+      for(int k=0;k<30;k++) servo_set_angle(servo_angle);
+
+      // 5. Fan + Servo + Buzzer status
+      lcd_putc("\fFAN : ");
+      if(fan_status) lcd_putc("ON "); else lcd_putc("OFF");
+
+      lcd_gotoxy(1,2);
+      if(servo_angle==90)
+         printf(lcd_putc,"SRV:90%c A ",223); // also using ° for servo angle
+      else
+         printf(lcd_putc,"SRV:0%c A ",223);
+
+      if(buzzer_status)
+         lcd_putc("BZ:ON");
+      else
+         lcd_putc("BZ:OFF");
+      for(int m=0;m<30;m++) servo_set_angle(servo_angle);
+   }
+}
+
+// ------------------- DHT11 Functions -------------------
+short dht11_read_data(unsigned int8 *data) {
+   unsigned int8 i;
+   dht11_start();
+   if(!dht11_check_response())
+      return 0;
+   for(i=0; i<5; i++) data[i] = dht11_read_byte();
+   if(data[4] != ((data[0]+data[1]+data[2]+data[3]) & 0xFF))
+      return 0;
+   return 1;
+}
+
+void dht11_start() {
+   output_drive(DHT11_PIN);
+   output_low(DHT11_PIN);
+   delay_ms(20);
+   output_high(DHT11_PIN);
+   delay_us(30);
+   set_tris_c(0x01);   // Make RC0 input
+}
+
+int1 dht11_check_response() {
+   delay_us(40);
+   if(!input(DHT11_PIN)) {
+      delay_us(80);
+      if(input(DHT11_PIN)) {
+         delay_us(40);
+         return 1;
+      }
+   }
+   return 0;
+}
+
+unsigned int8 dht11_read_byte() {
+   unsigned int8 i, data=0;
+   for(i=0; i<8; i++) {
+      while(!input(DHT11_PIN));
+      delay_us(30);
+      if(input(DHT11_PIN))
+         data = (data<<1) | 1;
+      else
+         data = (data<<1);
+      while(input(DHT11_PIN));
+   }
+   return data;
+}

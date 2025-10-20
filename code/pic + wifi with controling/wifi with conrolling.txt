@@ -1,0 +1,78 @@
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#include <Servo.h>
+
+// Replace with your WiFi credentials
+char auth[] = "YOUR_BLYNK_AUTH_TOKEN";
+char ssid[] = "YOUR_WIFI_SSID";
+char pass[] = "YOUR_WIFI_PASSWORD";
+
+// Virtual pins
+#define VPIN_FAN    V1
+#define VPIN_SERVO  V2
+
+// Hardware pins
+#define FAN_PIN    D1
+#define SERVO_PIN  D2
+
+Servo myServo;
+String inputString = ""; // Store incoming serial data
+
+void setup() {
+  Serial.begin(9600);      // Serial to PIC16F877A
+  Blynk.begin(auth, ssid, pass);
+
+  pinMode(FAN_PIN, OUTPUT);
+  myServo.attach(SERVO_PIN);
+
+  // Default states
+  digitalWrite(FAN_PIN, LOW);
+  myServo.write(0);
+}
+
+void loop() {
+  Blynk.run();
+  if (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      parsePICData(inputString);
+      inputString = "";
+    } else {
+      inputString += c;
+    }
+  }
+}
+
+// ---- Parse PIC sensor string ----
+void parsePICData(String data) {
+  // Example input: "PM25:123,MQ135:456,TEMP:27.5,HUMI:45.0,FAN:1,SWITCH:0,SERVO:90,BUZZER:1"
+  int pm25, mq135, temp_int, temp_dec, humi_int, humi_dec, fan, servo, buzzer;
+  
+  sscanf(data.c_str(), "PM25:%d,MQ135:%d,TEMP:%d.%d,HUMI:%d.%d,FAN:%d,SWITCH:%*d,SERVO:%d,BUZZER:%d",
+         &pm25, &mq135, &temp_int, &temp_dec, &humi_int, &humi_dec, &fan, &servo, &buzzer);
+
+  // Send to Blynk
+  Blynk.virtualWrite(V1, fan);
+  Blynk.virtualWrite(V2, servo);
+  Blynk.virtualWrite(V3, pm25);    // optional
+  Blynk.virtualWrite(V4, mq135);   // optional
+  Blynk.virtualWrite(V5, temp_int); // optional
+  Blynk.virtualWrite(V6, humi_int); // optional
+}
+
+// ---- Blynk write handlers ----
+BLYNK_WRITE(VPIN_FAN) {
+  int val = param.asInt();
+  digitalWrite(FAN_PIN, val ? HIGH : LOW);
+
+  // Send command to PIC
+  if(val) Serial.print('F'); else Serial.print('f');
+}
+
+BLYNK_WRITE(VPIN_SERVO) {
+  int val = param.asInt();
+  if(val) myServo.write(90); else myServo.write(0);
+
+  // Send command to PIC
+  if(val) Serial.print('S'); else Serial.print('s');
+}

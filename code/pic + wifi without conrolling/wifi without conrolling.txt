@@ -1,0 +1,85 @@
+#define BLYNK_AUTH_TOKEN "P4sMMP6JAu9wtfogq6fXeVT195GSwCIO"
+#define BLYNK_TEMPLATE_ID "TMPL3Ia4FtDcl"
+#define BLYNK_TEMPLATE_NAME "AirQualityMonitor"
+
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+
+// ----- WiFi Credentials -----
+char ssid[] = "Kishorekumar S Phone Wifi";
+char pass[] = "6374864213";
+
+// ----- Virtual Pins -----
+#define VPIN_PM25     V0
+#define VPIN_MQ135    V1
+#define VPIN_TEMP     V2
+#define VPIN_HUMI     V3
+#define VPIN_FAN      V4
+#define VPIN_SERVO    V5
+#define VPIN_BUZZER   V6
+
+String inputData = "";
+
+void setup() {
+  Serial.begin(9600);        // UART from PIC
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+}
+
+void loop() {
+  Blynk.run();
+  readSerialData();
+}
+
+// Function to read UART data and parse
+void readSerialData() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {    // End of one data line
+      parseData(inputData);
+      inputData = "";
+    } else {
+      inputData += c;
+    }
+  }
+}
+
+void parseData(String data) {
+  // Example: PM25:123,MQ135:456,TEMP:28.5,HUMI:40.2,FAN:1,SWITCH:0,SERVO:90,BUZZER:1
+  float pm25=0, mq135=0, temp=0, humi=0;
+  int fan=0, servo=0, buzzer=0;
+
+  if (data.indexOf("PM25:") >= 0)
+    pm25 = getValue(data, "PM25:");
+  if (data.indexOf("MQ135:") >= 0)
+    mq135 = getValue(data, "MQ135:");
+  if (data.indexOf("TEMP:") >= 0)
+    temp = getValue(data, "TEMP:");
+  if (data.indexOf("HUMI:") >= 0)
+    humi = getValue(data, "HUMI:");
+  if (data.indexOf("FAN:") >= 0)
+    fan = (int)getValue(data, "FAN:");
+  if (data.indexOf("SERVO:") >= 0)
+    servo = (int)getValue(data, "SERVO:");
+  if (data.indexOf("BUZZER:") >= 0)
+    buzzer = (int)getValue(data, "BUZZER:");
+
+  // Send to Blynk
+  Blynk.virtualWrite(VPIN_PM25, pm25);
+  Blynk.virtualWrite(VPIN_MQ135, mq135);
+  Blynk.virtualWrite(VPIN_TEMP, temp);
+  Blynk.virtualWrite(VPIN_HUMI, humi);
+  Blynk.virtualWrite(VPIN_FAN, fan);
+  Blynk.virtualWrite(VPIN_SERVO, servo);
+  Blynk.virtualWrite(VPIN_BUZZER, buzzer);
+}
+
+// Function to extract numeric value from "KEY:VALUE" format
+float getValue(String data, String key) {
+  int start = data.indexOf(key);
+  if (start == -1) return 0;
+  start += key.length();
+  int end = data.indexOf(',', start);
+  if (end == -1) end = data.length();
+  String valStr = data.substring(start, end);
+  return valStr.toFloat();
+}
