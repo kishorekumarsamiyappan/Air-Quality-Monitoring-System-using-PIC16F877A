@@ -137,7 +137,7 @@ Example:
 ## 📎 Links
 
 - 📺 **YouTube Demo:** [Watch Here](https://youtu.be/XBpHLvsvLD0?si=xVkrZakvznvTM3dD)  
-- 💾 **GitHub Repository:** *([Clike To Get it](https://github.com/kishorekumarsamiyappan/Air-Quality-Monitoring-System-using-PIC16F877A.git))*  
+- 💾 **GitHub Repository:** [Clike To Get it](https://github.com/kishorekumarsamiyappan/Air-Quality-Monitoring-System-using-PIC16F877A.git) 
 
 ---
 ## 📷 Project Output
