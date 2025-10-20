@@ -101,9 +101,9 @@ This helps in detecting pollution early and taking preventive actions to ensure 
 ## 📷 Project Images 
 Example:  
 
-![Circuit Setup](images/circuit.jpg)  
-![LCD Display Output](images/lcd_output.jpg)  
-![Blynk Dashboard](images/blynk_dashboard.jpg)
+![Circuit Setup](images/circuit.jpeg)  
+![LCD Display Output](images/lcd_output.jpeg)  
+![Blynk Dashboard](images/blynk_dashboard.jpeg)
 
 ---
 
@@ -137,7 +137,7 @@ Example:
 ## 📎 Links
 
 - 📺 **YouTube Demo:** [Watch Here](https://youtu.be/XBpHLvsvLD0?si=xVkrZakvznvTM3dD)  
-- 💾 **GitHub Repository:** *([Add your repo link here once uploaded](https://github.com/kishorekumarsamiyappan/Air-Quality-Monitoring-System-using-PIC16F877A.git))*  
+- 💾 **GitHub Repository:** *([Clike To Get it](https://github.com/kishorekumarsamiyappan/Air-Quality-Monitoring-System-using-PIC16F877A.git))*  
 
 ---
 ## 📷 Project Output
@@ -145,16 +145,16 @@ Example:
 Here are the output images of the Air Quality Monitoring System:
 
 ### 🧠 Hardware Setup
-![Hardware Setup](images/sensor_setup.jpg)
+![Hardware Setup](images/sensor_setup.jpeg)
 
 ### 📟 LCD Display Output
-![LCD Display](images/lcd_output.jpg)
+![LCD Display](images/lcd_output.jpeg)
 
 ### 📱 Blynk Mobile Dashboard
-![Blynk Dashboard](images/blynk_dashboard.jpg)
+![Blynk Dashboard](images/blynk_dashboard.jpeg)
 
 ### 🌬️ Final Project Setup
-![Final Project](images/final_project.jpg)
+![Final Project](images/final_project.jpeg)
 
 ---
 ### ⭐ If you found this project helpful, don’t forget to star the repository!
